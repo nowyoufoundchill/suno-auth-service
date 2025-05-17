@@ -42,7 +42,7 @@ export async function getDebugInfo(): Promise<DebugInfo> {
   let files: string[] = [];
   try {
     files = fs.readdirSync(cwd);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error reading directory:', error);
   }
 
@@ -59,7 +59,7 @@ export async function getDebugInfo(): Promise<DebugInfo> {
   for (const path of browserPaths) {
     try {
       pathExists[path] = fs.existsSync(path);
-    } catch (error) {
+    } catch (error: any) {
       pathExists[path] = false;
     }
   }
@@ -76,7 +76,7 @@ export async function getDebugInfo(): Promise<DebugInfo> {
   for (const cmd of commands) {
     try {
       shellCommands[cmd] = execSync(cmd).toString().trim();
-    } catch (error) {
+    } catch (error: any) {
       shellCommands[cmd] = `Error: ${error.message}`;
     }
   }
@@ -89,21 +89,21 @@ export async function getDebugInfo(): Promise<DebugInfo> {
   try {
     require('puppeteer');
     puppeteerAvailable = true;
-  } catch (error) {
+  } catch (error: any) {
     // Puppeteer not available
   }
 
   try {
     require('puppeteer-extra');
     puppeteerExtraAvailable = true;
-  } catch (error) {
+  } catch (error: any) {
     // Puppeteer-extra not available
   }
 
   try {
     require('puppeteer-extra-plugin-stealth');
     stealthPluginAvailable = true;
-  } catch (error) {
+  } catch (error: any) {
     // Stealth plugin not available
   }
 
@@ -113,7 +113,7 @@ export async function getDebugInfo(): Promise<DebugInfo> {
     const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
     packages.dependencies = JSON.stringify(packageJson.dependencies);
     packages.devDependencies = JSON.stringify(packageJson.devDependencies);
-  } catch (error) {
+  } catch (error: any) {
     packages.error = `Error reading package.json: ${error.message}`;
   }
 
