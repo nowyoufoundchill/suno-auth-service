@@ -369,8 +369,118 @@ export async function authenticateWithGoogle(): Promise<string> {
         throw new Error('Failed to select or enter Google account');
       }
     } else {
-      // Regular login flow with email and password
-      console.log('On standard login page, entering credentials...');
+// Update the Google login section:
+// Regular login flow with email and password
+console.log('On standard login page, entering credentials...');
+
+try {
+  // Enter Google email
+  console.log('Waiting for email field...');
+  await page.waitForSelector('input[type="email"]', { timeout: 10000 });
+  console.log('Found email field, typing email...');
+  await page.type('input[type="email"]', process.env.GOOGLE_EMAIL || '');
+  
+  // Add a small delay
+  await page.waitForTimeout(1000);
+  
+  // Click the Next button instead of pressing Enter
+  console.log('Looking for Next button...');
+  const nextButtonSelectors = [
+    'button[jsname="LgbsSe"]',
+    '#identifierNext',
+    'button:contains("Next")',
+    'div[role="button"]:contains("Next")',
+    'input[type="submit"]'
+  ];
+  
+  let nextButtonFound = false;
+  for (const selector of nextButtonSelectors) {
+    try {
+      const buttonExists = await page.waitForSelector(selector, { visible: true, timeout: 3000 });
+      if (buttonExists) {
+        console.log(`Found Next button with selector: ${selector}`);
+        await page.click(selector);
+        nextButtonFound = true;
+        break;
+      }
+    } catch (error) {
+      console.log(`Next button selector ${selector} not found`);
+    }
+  }
+  
+  if (!nextButtonFound) {
+    console.log('Could not find Next button, trying to press Enter...');
+    await page.keyboard.press('Enter');
+  }
+  
+  // Wait for password field with a more generous timeout
+  console.log('Waiting for password field...');
+  await page.waitForSelector('input[type="password"]', { visible: true, timeout: 15000 });
+  
+  // Take a screenshot for debugging
+  console.log('Password field found, taking screenshot...');
+  const passwordScreenshot = await page.screenshot({ encoding: 'base64' });
+  console.log(`Password screen screenshot (base64): ${passwordScreenshot.slice(0, 100)}...`);
+  
+  console.log('Typing password...');
+  await page.type('input[type="password"]', process.env.GOOGLE_PASSWORD || '');
+  
+  // Add a small delay
+  await page.waitForTimeout(1000);
+  
+  // Click the Sign In button instead of pressing Enter
+  console.log('Looking for Sign In button...');
+  const signInButtonSelectors = [
+    'button[jsname="LgbsSe"]',
+    '#passwordNext',
+    'button:contains("Sign in")',
+    'div[role="button"]:contains("Sign in")',
+    'input[type="submit"]'
+  ];
+  
+  let signInButtonFound = false;
+  for (const selector of signInButtonSelectors) {
+    try {
+      const buttonExists = await page.waitForSelector(selector, { visible: true, timeout: 3000 });
+      if (buttonExists) {
+        console.log(`Found Sign In button with selector: ${selector}`);
+        await page.click(selector);
+        signInButtonFound = true;
+        break;
+      }
+    } catch (error) {
+      console.log(`Sign In button selector ${selector} not found`);
+    }
+  }
+  
+  if (!signInButtonFound) {
+    console.log('Could not find Sign In button, trying to press Enter...');
+    await page.keyboard.press('Enter');
+  }
+} catch (error) {
+  console.error('Error during Google login:', error);
+  
+  // Take a screenshot to see current state
+  try {
+    const screenshot = await page.screenshot({ encoding: 'base64' });
+    console.log(`Login error screenshot (base64): ${screenshot.slice(0, 100)}...`);
+    
+    // Get page content to diagnose
+    const pageContent = await page.evaluate(() => {
+      return {
+        url: window.location.href,
+        title: document.title,
+        bodyText: document.body.innerText.slice(0, 500)
+      };
+    });
+    
+    console.log('Current page state during error:', JSON.stringify(pageContent, null, 2));
+  } catch (screenshotError) {
+    console.error('Error taking screenshot:', screenshotError);
+  }
+  
+  throw error;
+}
       // Enter Google email
       await page.waitForSelector('input[type="email"]');
       await page.type('input[type="email"]', process.env.GOOGLE_EMAIL || '');
