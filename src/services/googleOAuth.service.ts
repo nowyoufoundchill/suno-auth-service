@@ -66,15 +66,15 @@ export async function authenticateWithGoogle(): Promise<string> {
       
       // Try to find the account with the correct email
       const targetEmail = process.env.GOOGLE_EMAIL;
-      const accountFound = await page.evaluate((email) => {
-        const accountDivs = Array.from(document.querySelectorAll('div[data-email]'));
-        const targetDiv = accountDivs.find(div => div.getAttribute('data-email') === email);
-        if (targetDiv) {
-          targetDiv.click();
-          return true;
-        }
-        return false;
-      }, targetEmail);
+const accountFound = await page.evaluate((email) => {
+  const accountDivs = Array.from(document.querySelectorAll('div[data-email]'));
+  const targetDiv = accountDivs.find(div => div.getAttribute('data-email') === email);
+  if (targetDiv) {
+    (targetDiv as HTMLElement).click();
+    return true;
+  }
+  return false;
+}, targetEmail);
       
       if (!accountFound) {
         // If account not found directly, try to click "Use another account"
