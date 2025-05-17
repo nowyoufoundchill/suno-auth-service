@@ -1,18 +1,53 @@
-import dotenv from 'dotenv';
-import { initializeApp } from './config/app';
-import { logger } from './utils/logger';
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { executablePath } from 'puppeteer-core';
 
-// Load environment variables
+// Register the stealth plugin
+puppeteerExtra.use(StealthPlugin());
+
+// Launch browser with the correct executable path
+const browser = await puppeteerExtra.launch({
+  executablePath: '/usr/bin/chromium',
+  args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  headless: true
+});
+
+// When launching, specify the path to Chromium
+const browser = await puppeteer.launch({
+  executablePath: '/usr/bin/chromium-browser', // This path works on Railway
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
+
+import express from 'express';
+import dotenv from 'dotenv';
+
 dotenv.config();
 
-// Create Express app
-const app = initializeApp();
+const app = express();
+const port = process.env.PORT || 3000;
 
-// Get port from environment or default to 3000
-const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => {
+  res.send('Suno Auth Service is running');
+});
 
-// Start server
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-  logger.info('Authentication service for Suno started successfully');
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
+import express from 'express';
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Suno Auth Service is running');
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
