@@ -120,8 +120,8 @@ export async function authenticateWithGoogle(): Promise<string> {
         const signInButtonFound = await page.evaluate(() => {
           const elements = Array.from(document.querySelectorAll('button, [role="button"], a'));
           const signInElement = elements.find(el => el.textContent && el.textContent.includes('Sign In'));
-          if (signInElement) {
-            (signInElement as HTMLElement).click();
+          if (signInElement && signInElement instanceof HTMLElement) {
+            signInElement.click();
             return true;
           }
           return false;
@@ -136,25 +136,95 @@ export async function authenticateWithGoogle(): Promise<string> {
       }
     }
     
-    // Wait for the auth dialog to appear (based on screenshot 2)
+    // Wait for the auth dialog to appear
     console.log('Waiting for auth dialog...');
-    await page.waitForFunction(() => {
-      const dialogTitleElement = document.querySelector('h2, h3, h4, .modal-title, .dialog-title');
-      return dialogTitleElement && dialogTitleElement.textContent ? 
-        dialogTitleElement.textContent.includes('Continue to Suno') : false;
-    }, { timeout: 30000 });
-    console.log('Auth dialog appeared');
-    
-    // Click the Google icon (based on screenshot 2)
-    console.log('Looking for Google login option...');
-    // Try multiple selectors for the Google button
-    const googleButtonSelectors = [
-      'button[aria-label="Google"]',
-      'a[aria-label="Google"]',
-      'img[alt="Google"]',
-      'button:nth-child(4)' // Based on position in your screenshot
+    const authDialogSelectors = [
+      // Based on the HTML screenshot - most specific first
+      'div.cl-modalContent[aria-modal="true"][role="dialog"]',
+      'div.cl-rootBox.cl-signIn-root',
+      'div.cl-card.cl-signIn-start',
+      // Fallbacks
+      '[role="dialog"]',
+      '.cl-modalContent',
+      '.cl-rootBox'
     ];
+
+    let authDialogFound = false;
+    for (const selector of authDialogSelectors) {
+      try {
+        console.log(`Trying auth dialog selector: ${selector}`);
+        const dialogExists = await page.waitForSelector(selector, { visible: true, timeout: 5000 });
+        if (dialogExists) {
+          console.log(`Found auth dialog with selector: ${selector}`);
+          authDialogFound = true;
+          break;
+        }
+      } catch (error) {
+        console.log(`Auth dialog selector ${selector} not found`);
+      }
+    }
+
+    // If dialog was found but we still want to make sure we're on the right page
+    if (authDialogFound) {
+      // Check for "Continue to Suno" text
+      const titleExists = await page.evaluate(() => {
+        const titles = Array.from(document.querySelectorAll('h1, h2, h3, h4, div, span, p'));
+        return titles.some(el => 
+          el.textContent && el.textContent.includes('Continue to Suno')
+        );
+      });
+      
+      if (titleExists) {
+        console.log('Confirmed "Continue to Suno" title text');
+      } else {
+        console.log('Warning: Did not find "Continue to Suno" title, but dialog was found');
+      }
+    }
     
+    // If no dialog found, check what state we're in
+    if (!authDialogFound) {
+      console.log('Auth dialog not found with selectors, checking current page state...');
+      
+      // Check if we're already on a Google sign-in page
+      const onGooglePage = await page.evaluate(() => {
+        return window.location.href.includes('accounts.google.com');
+      });
+      
+      if (onGooglePage) {
+        console.log('Already redirected to Google sign-in page, continuing...');
+        authDialogFound = true;
+      } else {
+        // Check page content to see what's visible
+        const pageContent = await page.evaluate(() => {
+          const bodyText = document.body.innerText;
+          const visibleButtons = Array.from(document.querySelectorAll('button'))
+            .filter(button => button instanceof HTMLElement && button.offsetParent !== null) // Check if visible
+            .map(button => button.textContent?.trim());
+          
+          return {
+            url: window.location.href,
+            title: document.title,
+            bodyText: bodyText.slice(0, 500), // First 500 chars
+            visibleButtons
+          };
+        });
+        
+        console.log('Current page state:', JSON.stringify(pageContent, null, 2));
+      }
+    }
+    
+    // Click the Google icon (based on screenshot)
+    console.log('Looking for Google login option...');
+    const googleButtonSelectors = [
+      // Most specific selectors based on the HTML
+      'button.cl-socialButtonsIconButton.cl-button.cl-socialButtonsIconConButton__google',
+      'button.cl-button__google',
+      'button.cl-socialButtonsIconButton:has(img[alt="Sign in with Google"])',
+      // Fallbacks
+      'img[alt="Sign in with Google"]',
+      'button:nth-child(4)'
+    ];
+
     let googleButtonFound = false;
     for (const selector of googleButtonSelectors) {
       try {
@@ -172,20 +242,39 @@ export async function authenticateWithGoogle(): Promise<string> {
     }
     
     if (!googleButtonFound) {
-      // If we can't find the Google button with selectors, try finding by position
-      console.log('Google button not found with selectors, trying by position...');
+      // If we can't find the Google button with selectors, try finding by content
+      console.log('Google button not found with selectors, trying by content...');
       try {
-        // Based on the screenshot, we know it's the 4th button
-        const buttons = await page.$$('button');
-        if (buttons.length >= 4) {
-          console.log(`Found ${buttons.length} buttons, clicking the 4th one...`);
-          await buttons[3].click();
-          googleButtonFound = true;
+        const googleButtonClicked = await page.evaluate(() => {
+          // Find buttons with Google text or image
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const googleButton = buttons.find(btn => {
+            // Check button text
+            if (btn.textContent && (btn.textContent.includes('Google') || btn.textContent.includes('google'))) {
+              return true;
+            }
+            // Check for img with Google alt text
+            const img = btn.querySelector('img');
+            if (img && img.alt && (img.alt.includes('Google') || img.alt.includes('google'))) {
+              return true;
+            }
+            return false;
+          });
+          
+          if (googleButton && googleButton instanceof HTMLElement) {
+            googleButton.click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (!googleButtonClicked) {
+          throw new Error('Could not find Google button by content');
         } else {
-          throw new Error(`Only found ${buttons.length} buttons, expected at least 4`);
+          googleButtonFound = true;
         }
       } catch (error) {
-        console.error('Could not find Google button by position:', error);
+        console.error('Could not find Google button by content:', error);
         throw new Error('Could not find the Google login button');
       }
     }
