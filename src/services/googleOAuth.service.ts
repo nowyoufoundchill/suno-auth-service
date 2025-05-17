@@ -2,6 +2,7 @@ import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
@@ -14,20 +15,76 @@ puppeteerExtra.use(StealthPlugin());
  * @returns Authentication token
  */
 export async function authenticateWithGoogle(): Promise<string> {
-  const browser = await puppeteerExtra.launch({
-    executablePath: '/usr/bin/chromium',
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--disable-gpu',
-      '--window-size=1280,720'
-    ]
-  });
-
+  console.log('Starting Google authentication process...');
+  
+  // Determine the correct path to Chromium based on the environment
+  let executablePath = '';
+  
+  // Check common alternative paths
+  const possiblePaths = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/opt/google/chrome/chrome'
+  ];
+  
+  for (const path of possiblePaths) {
+    try {
+      if (fs.existsSync(path)) {
+        executablePath = path;
+        console.log(`Found browser at: ${path}`);
+        break;
+      }
+    } catch (error) {
+      console.log(`Path check error: ${error}`);
+    }
+  }
+  
+  console.log(`Using browser at: ${executablePath || 'Not found, will try alternatives'}`);
+  
+  let browser;
+  
   try {
+    if (!executablePath) {
+      console.log('No Chrome installation found. Fallback: Using puppeteer instead of puppeteer-core...');
+      
+      // Try to use puppeteer's bundled browser as a fallback
+      try {
+        const puppeteer = require('puppeteer');
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--window-size=1280,720'
+          ]
+        });
+        console.log('Successfully launched bundled browser');
+      } catch (error) {
+        console.error('Failed to launch bundled browser:', error);
+        throw new Error('Could not find any supported browser to launch');
+      }
+    } else {
+      // Original launch code with executablePath
+      browser = await puppeteerExtra.launch({
+        executablePath: executablePath,
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--window-size=1280,720'
+        ]
+      });
+      console.log('Successfully launched browser with executablePath');
+    }
+
     console.log('Browser launched, opening new page...');
     const page = await browser.newPage();
     
@@ -66,15 +123,15 @@ export async function authenticateWithGoogle(): Promise<string> {
       
       // Try to find the account with the correct email
       const targetEmail = process.env.GOOGLE_EMAIL;
-const accountFound = await page.evaluate((email) => {
-  const accountDivs = Array.from(document.querySelectorAll('div[data-email]'));
-  const targetDiv = accountDivs.find(div => div.getAttribute('data-email') === email);
-  if (targetDiv) {
-    (targetDiv as HTMLElement).click();
-    return true;
-  }
-  return false;
-}, targetEmail);
+      const accountFound = await page.evaluate((email) => {
+        const accountDivs = Array.from(document.querySelectorAll('div[data-email]'));
+        const targetDiv = accountDivs.find(div => div.getAttribute('data-email') === email);
+        if (targetDiv) {
+          (targetDiv as HTMLElement).click();
+          return true;
+        }
+        return false;
+      }, targetEmail);
       
       if (!accountFound) {
         // If account not found directly, try to click "Use another account"
@@ -144,7 +201,9 @@ const accountFound = await page.evaluate((email) => {
     console.error('Authentication error:', error);
     throw error;
   } finally {
-    await browser.close();
-    console.log('Browser closed');
+    if (browser) {
+      await browser.close();
+      console.log('Browser closed');
+    }
   }
 }
