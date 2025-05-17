@@ -20,7 +20,7 @@ export async function authenticateWithGoogle(): Promise<string> {
   }
 }
 
-// Once the server is working, implement the actual browser automation:
+// The actual implementation using Puppeteer should be uncommented once the server is working
 /*
 export async function authenticateWithGoogle(): Promise<string> {
   const browser = await puppeteerExtra.launch({
@@ -35,11 +35,34 @@ export async function authenticateWithGoogle(): Promise<string> {
     // Navigate to Suno login
     await page.goto('https://suno.com/login');
     
-    // Implement login logic here
-    // ...
+    // Click the Google login button
+    await page.waitForSelector('button[data-provider="google"]');
+    await page.click('button[data-provider="google"]');
     
-    // Get the auth token
-    const token = 'your-authentication-token';
+    // Wait for Google login page
+    await page.waitForNavigation();
+    
+    // Fill in Google credentials
+    await page.type('input[type="email"]', process.env.GOOGLE_EMAIL || '');
+    await page.click('button[type="button"]');
+    
+    // Wait for password field
+    await page.waitForSelector('input[type="password"]');
+    await page.type('input[type="password"]', process.env.GOOGLE_PASSWORD || '');
+    await page.click('button[type="button"]');
+    
+    // Wait for redirect back to Suno
+    await page.waitForNavigation();
+    
+    // Extract the auth token (this will depend on how Suno stores it)
+    // This is just an example - you'll need to determine the actual way to extract the token
+    const token = await page.evaluate(() => {
+      return localStorage.getItem('authToken');
+    });
+    
+    if (!token) {
+      throw new Error('Could not retrieve authentication token');
+    }
     
     return token;
   } catch (error) {

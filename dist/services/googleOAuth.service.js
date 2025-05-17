@@ -3,293 +3,78 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.googleOAuthService = exports.GoogleOAuthService = void 0;
+exports.authenticateWithGoogle = authenticateWithGoogle;
 const puppeteer_extra_1 = __importDefault(require("puppeteer-extra"));
 const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const logger_1 = require("../utils/logger");
-// Apply stealth plugin to avoid detection
+const uuid_1 = require("uuid");
+// Register stealth plugin
 puppeteer_extra_1.default.use((0, puppeteer_extra_plugin_stealth_1.default)());
-// Constants
-const SUNO_URL = 'https://suno.com';
-const AUTH_TIMEOUT = 60000; // 1 minute
-const TEMP_DIR = path_1.default.join(process.cwd(), 'temp');
-// Ensure temp directory exists
-if (!fs_1.default.existsSync(TEMP_DIR)) {
-    fs_1.default.mkdirSync(TEMP_DIR, { recursive: true });
-}
-class GoogleOAuthService {
-    browser = null;
-    /**
-     * Authenticate with Google OAuth for Suno
-     * @param email Google email
-     * @param password Google password
-     * @returns Session data that can be used for future requests
-     */
-    async authenticate(email, password) {
-        if (!email || !password) {
-            return {
-                success: false,
-                error: 'Google credentials are required'
-            };
-        }
-        try {
-            // Initialize browser
-            this.browser = await this.initBrowser();
-            const page = await this.browser.newPage();
-            // Set up stealth measures
-            await this.setupStealthMode(page);
-            // Log in to Suno with Google
-            logger_1.logger.info('Starting Google OAuth authentication for Suno...');
-            const authResult = await this.performGoogleAuth(page, email, password);
-            if (!authResult.success) {
-                return {
-                    success: false,
-                    error: authResult.error || 'Authentication failed'
-                };
-            }
-            // Extract session data
-            logger_1.logger.info('Authentication successful, extracting session data...');
-            const cookies = await page.cookies();
-            // Save cookies to a file for debugging
-            const cookiePath = path_1.default.join(TEMP_DIR, `suno-cookies-${Date.now()}.json`);
-            fs_1.default.writeFileSync(cookiePath, JSON.stringify(cookies, null, 2));
-            // Create session string from cookies
-            const sessionCookies = cookies
-                .filter(cookie => ['sessionid', 'csrftoken', 'suno_session'].some(name => cookie.name.includes(name)))
-                .map(cookie => `${cookie.name}=${cookie.value}`)
-                .join('; ');
-            return {
-                success: true,
-                sessionData: sessionCookies,
-                cookies
-            };
-        }
-        catch (error) {
-            logger_1.logger.error('Error during Google OAuth authentication:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-        finally {
-            await this.closeBrowser();
-        }
+/**
+ * Authenticates with Google OAuth through Suno.com
+ * @returns Authentication token
+ */
+async function authenticateWithGoogle() {
+    // This is a placeholder - implement the actual logic when the server works
+    try {
+        // Return a mock token for now
+        return `mock-token-${(0, uuid_1.v4)()}`;
     }
-    /**
-     * Initialize browser with stealth configuration
-     */
-    async initBrowser() {
-        const args = [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-extensions',
-            '--disable-gpu',
-            '--window-size=1280,800'
-        ];
-        return puppeteer_extra_1.default.launch({
-            headless: true,
-            args,
-            defaultViewport: {
-                width: 1280,
-                height: 800
-            }
-        });
-    }
-    /**
-     * Set up page with stealth measures to avoid detection
-     */
-    async setupStealthMode(page) {
-        // Set realistic user agent
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
-        // Set extra HTTP headers
-        await page.setExtraHTTPHeaders({
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'sec-ch-ua': '"Google Chrome";v="125", " Not;A Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1'
-        });
-        // Add browser fingerprint evasion
-        await page.evaluateOnNewDocument(() => {
-            // Override navigator properties
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => false,
-            });
-            // Add language plugins
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-            // Add mock plugins
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => {
-                    return [
-                        {
-                            0: {
-                                type: 'application/pdf',
-                                suffixes: 'pdf',
-                                description: 'Portable Document Format',
-                                enabledPlugin: true,
-                            },
-                            name: 'Chrome PDF Plugin',
-                            description: 'Portable Document Format',
-                            filename: 'internal-pdf-viewer',
-                            length: 1,
-                        }
-                    ];
-                },
-            });
-        });
-    }
-    /**
-     * Perform the Google OAuth authentication flow
-     */
-    async performGoogleAuth(page, email, password) {
-        try {
-            // Navigate to Suno login page
-            await page.goto(`${SUNO_URL}/login`, { waitUntil: 'networkidle2', timeout: AUTH_TIMEOUT });
-            logger_1.logger.info('Loaded Suno login page');
-            // Take screenshot for debugging
-            const loginScreenshot = path_1.default.join(TEMP_DIR, `suno-login-${Date.now()}.png`);
-            await page.screenshot({ path: loginScreenshot, fullPage: true });
-            logger_1.logger.info(`Login page screenshot saved: ${loginScreenshot}`);
-            // Look for Google login button
-            const googleButton = await page.$('button[data-provider="google"]');
-            if (!googleButton) {
-                return { success: false, error: 'Google login button not found' };
-            }
-            // Click Google login button
-            await googleButton.click();
-            logger_1.logger.info('Clicked Google login button');
-            // Wait for redirect to Google
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: AUTH_TIMEOUT });
-            // Take screenshot of Google login page
-            const googleScreenshot = path_1.default.join(TEMP_DIR, `google-login-${Date.now()}.png`);
-            await page.screenshot({ path: googleScreenshot, fullPage: true });
-            logger_1.logger.info(`Google login screenshot saved: ${googleScreenshot}`);
-            // Enter email
-            const emailInput = await page.$('input[type="email"]');
-            if (!emailInput) {
-                return { success: false, error: 'Email input not found' };
-            }
-            await emailInput.type(email, { delay: 100 });
-            await page.keyboard.press('Enter');
-            logger_1.logger.info('Entered email address');
-            // Wait for password input
-            await page.waitForSelector('input[type="password"]', { timeout: AUTH_TIMEOUT });
-            // Enter password
-            await page.type('input[type="password"]', password, { delay: 100 });
-            await page.keyboard.press('Enter');
-            logger_1.logger.info('Entered password');
-            // Wait for redirect back to Suno
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: AUTH_TIMEOUT });
-            // Take screenshot after login
-            const postLoginScreenshot = path_1.default.join(TEMP_DIR, `post-login-${Date.now()}.png`);
-            await page.screenshot({ path: postLoginScreenshot, fullPage: true });
-            logger_1.logger.info(`Post-login screenshot saved: ${postLoginScreenshot}`);
-            // Verify login success
-            const isLoggedIn = await this.checkLoginStatus(page);
-            if (!isLoggedIn) {
-                return { success: false, error: 'Login verification failed' };
-            }
-            return { success: true };
-        }
-        catch (error) {
-            logger_1.logger.error('Error in Google auth flow:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    /**
-     * Check if login was successful
-     */
-    async checkLoginStatus(page) {
-        try {
-            // Check URL
-            const url = page.url();
-            if (!url.includes('suno.com')) {
-                return false;
-            }
-            // Look for elements that indicate successful login
-            const loginIndicators = [
-                'div[data-testid="user-menu"]',
-                'button[aria-label="Account settings"]',
-                'a[href="/account"]',
-                'button:has-text("New Song")',
-                'div[class*="avatar"]'
-            ];
-            for (const selector of loginIndicators) {
-                const element = await page.$(selector);
-                if (element) {
-                    logger_1.logger.info(`Found login indicator: ${selector}`);
-                    return true;
-                }
-            }
-            // Check for logged in cookies
-            const cookies = await page.cookies();
-            const hasSessionCookies = cookies.some(cookie => cookie.name.includes('sessionid') ||
-                cookie.name.includes('suno_session'));
-            return hasSessionCookies;
-        }
-        catch (error) {
-            logger_1.logger.error('Error checking login status:', error);
-            return false;
-        }
-    }
-    /**
-     * Close browser instance
-     */
-    async closeBrowser() {
-        if (this.browser) {
-            await this.browser.close();
-            this.browser = null;
-        }
-    }
-    /**
-     * Verify if session data is still valid
-     */
-    async verifySession(sessionData) {
-        if (!sessionData) {
-            return false;
-        }
-        try {
-            this.browser = await this.initBrowser();
-            const page = await this.browser.newPage();
-            // Set the session cookies
-            const cookieStrings = sessionData.split(';');
-            for (const cookieStr of cookieStrings) {
-                const [name, value] = cookieStr.trim().split('=');
-                if (name && value) {
-                    await page.setCookie({
-                        name,
-                        value,
-                        domain: 'suno.com',
-                        path: '/'
-                    });
-                }
-            }
-            // Navigate to Suno
-            await page.goto(SUNO_URL, { waitUntil: 'networkidle2', timeout: 30000 });
-            // Check if we're logged in
-            const isLoggedIn = await this.checkLoginStatus(page);
-            return isLoggedIn;
-        }
-        catch (error) {
-            logger_1.logger.error('Error verifying session:', error);
-            return false;
-        }
-        finally {
-            await this.closeBrowser();
-        }
+    catch (error) {
+        console.error('Google authentication error:', error);
+        throw new Error('Failed to authenticate with Google');
     }
 }
-exports.GoogleOAuthService = GoogleOAuthService;
-exports.googleOAuthService = new GoogleOAuthService();
+// The actual implementation using Puppeteer should be uncommented once the server is working
+/*
+export async function authenticateWithGoogle(): Promise<string> {
+  const browser = await puppeteerExtra.launch({
+    executablePath: '/usr/bin/chromium',
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+
+  try {
+    const page = await browser.newPage();
+    
+    // Navigate to Suno login
+    await page.goto('https://suno.com/login');
+    
+    // Click the Google login button
+    await page.waitForSelector('button[data-provider="google"]');
+    await page.click('button[data-provider="google"]');
+    
+    // Wait for Google login page
+    await page.waitForNavigation();
+    
+    // Fill in Google credentials
+    await page.type('input[type="email"]', process.env.GOOGLE_EMAIL || '');
+    await page.click('button[type="button"]');
+    
+    // Wait for password field
+    await page.waitForSelector('input[type="password"]');
+    await page.type('input[type="password"]', process.env.GOOGLE_PASSWORD || '');
+    await page.click('button[type="button"]');
+    
+    // Wait for redirect back to Suno
+    await page.waitForNavigation();
+    
+    // Extract the auth token (this will depend on how Suno stores it)
+    // This is just an example - you'll need to determine the actual way to extract the token
+    const token = await page.evaluate(() => {
+      return localStorage.getItem('authToken');
+    });
+    
+    if (!token) {
+      throw new Error('Could not retrieve authentication token');
+    }
+    
+    return token;
+  } catch (error) {
+    console.error('Google authentication error:', error);
+    throw error;
+  } finally {
+    await browser.close();
+  }
+}
+*/ 
 //# sourceMappingURL=googleOAuth.service.js.map
