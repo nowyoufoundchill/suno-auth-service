@@ -25,19 +25,23 @@ export async function testBrowser(): Promise<string> {
       result += 'Successfully launched browser with puppeteer. ';
       
       // Test basic navigation
-      const page = await browser.newPage();
-      console.log('Navigating to example.com...');
-      await page.goto('https://example.com');
-      const title = await page.title();
-      console.log(`Page loaded: ${title}`);
-      result += `Page title: "${title}". `;
-      
-      // Test JavaScript execution
-      const jsVersion = await page.evaluate(() => {
-        return navigator.userAgent;
-      });
-      console.log(`User agent: ${jsVersion}`);
-      result += `User agent: ${jsVersion}`;
+      if (browser) {  // Add null check here
+        const page = await browser.newPage();
+        console.log('Navigating to example.com...');
+        await page.goto('https://example.com');
+        const title = await page.title();
+        console.log(`Page loaded: ${title}`);
+        result += `Page title: "${title}". `;
+        
+        // Test JavaScript execution
+        const jsVersion = await page.evaluate(() => {
+          return navigator.userAgent;
+        });
+        console.log(`User agent: ${jsVersion}`);
+        result += `User agent: ${jsVersion}`;
+      } else {
+        throw new Error('Browser is null after launch');
+      }
       
       return result;
     } catch (error: any) {
@@ -72,10 +76,12 @@ export async function testBrowser(): Promise<string> {
               args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
             
-            console.log(`Successfully launched with ${path}`);
-            result += `Successfully launched browser at ${path}. `;
-            pathSuccess = true;
-            break;
+            if (browser) {  // Add null check here
+              console.log(`Successfully launched with ${path}`);
+              result += `Successfully launched browser at ${path}. `;
+              pathSuccess = true;
+              break;
+            }
           }
         } catch (e: any) {
           console.log(`Failed with ${path}: ${e.message}`);
@@ -95,7 +101,7 @@ export async function testBrowser(): Promise<string> {
     result += `Final error: ${error.message}`;
     throw error;
   } finally {
-    if (browser) {
+    if (browser) {  // This null check was already here
       console.log('Closing browser...');
       await browser.close();
       console.log('Browser closed');
