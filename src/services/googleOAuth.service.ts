@@ -3,6 +3,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import { ElementHandle } from 'puppeteer-core';
 
 // Load environment variables
 dotenv.config();
@@ -77,12 +78,10 @@ export async function authenticateWithGoogle(): Promise<string> {
       // Based on the HTML screenshot - most specific first
       'button.relative.inline-block.font-sans.font-medium',
       'button.relative',
-      'button[type="button"]:has(span:contains("Sign In"))',
-      'button:contains("Sign In")',
       'button[type="button"]',
       // Fallbacks
-      '[role="button"]:contains("Sign In")',
-      'a:contains("Sign In")'
+      '[role="button"]',
+      'a'
     ];
 
     let signInButtonFound = false;
@@ -91,12 +90,12 @@ export async function authenticateWithGoogle(): Promise<string> {
         console.log(`Trying Sign In selector: ${selector}`);
         const buttonExists = await page.waitForSelector(selector, { visible: true, timeout: 5000 });
         if (buttonExists) {
-          console.log(`Found Sign In button with selector: ${selector}`);
+          console.log(`Found button with selector: ${selector}`);
           
           // Check if this is actually the Sign In button
           const buttonText = await page.evaluate((sel) => {
             const el = document.querySelector(sel);
-            return el ? el.textContent.trim() : '';
+            return el && el.textContent ? el.textContent.trim() : '';
           }, selector);
           
           if (buttonText.includes('Sign In')) {
@@ -114,19 +113,25 @@ export async function authenticateWithGoogle(): Promise<string> {
     }
 
     if (!signInButtonFound) {
-      // If no selector worked, try XPath
-      console.log('No selectors worked, trying XPath...');
+      // If no selector worked, try by content
+      console.log('No selectors worked, trying by content...');
       try {
-        const signInButtons = await page.$x("//button[contains(text(), 'Sign In')]");
-        if (signInButtons.length > 0) {
-          console.log('Found button with XPath, clicking...');
-          await signInButtons[0].click();
-          signInButtonFound = true;
-        } else {
+        // Use evaluate instead of $x
+        const signInButtonFound = await page.evaluate(() => {
+          const elements = Array.from(document.querySelectorAll('button, [role="button"], a'));
+          const signInElement = elements.find(el => el.textContent && el.textContent.includes('Sign In'));
+          if (signInElement) {
+            (signInElement as HTMLElement).click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (!signInButtonFound) {
           throw new Error('No button with "Sign In" text found');
         }
       } catch (error) {
-        console.error('XPath search failed:', error);
+        console.error('Content search failed:', error);
         throw new Error('Could not find the Sign In button on Suno.com');
       }
     }
@@ -135,7 +140,8 @@ export async function authenticateWithGoogle(): Promise<string> {
     console.log('Waiting for auth dialog...');
     await page.waitForFunction(() => {
       const dialogTitleElement = document.querySelector('h2, h3, h4, .modal-title, .dialog-title');
-      return dialogTitleElement && dialogTitleElement.textContent.includes('Continue to Suno');
+      return dialogTitleElement && dialogTitleElement.textContent ? 
+        dialogTitleElement.textContent.includes('Continue to Suno') : false;
     }, { timeout: 30000 });
     console.log('Auth dialog appeared');
     
@@ -146,7 +152,7 @@ export async function authenticateWithGoogle(): Promise<string> {
       'button[aria-label="Google"]',
       'a[aria-label="Google"]',
       'img[alt="Google"]',
-      'button:has(img[alt="Google"])'
+      'button:nth-child(4)' // Based on position in your screenshot
     ];
     
     let googleButtonFound = false;
@@ -191,22 +197,24 @@ export async function authenticateWithGoogle(): Promise<string> {
     // Check if we're on the account selection screen
     const isAccountSelectionPage = await page.evaluate(() => {
       const headingElement = document.querySelector('[aria-labelledby="headingText"]');
-      return headingElement?.textContent?.includes('Choose an account') || false;
+      return headingElement && headingElement.textContent ? 
+        headingElement.textContent.includes('Choose an account') : false;
     });
     
     if (isAccountSelectionPage) {
       console.log('On account selection page, selecting account...');
       
       // Select the specific account by email
-      const targetEmail = process.env.GOOGLE_EMAIL;
+      const targetEmail = process.env.GOOGLE_EMAIL || '';
       console.log(`Looking for account: ${targetEmail}`);
       
       try {
-        const accountFound = await page.evaluate((email: string) => {
+        // Fix for TS2345 error - use a different approach to pass the email
+        const accountFound = await page.evaluate((email) => {
           // Find account elements
           const accountElements = Array.from(document.querySelectorAll('div, span, p'));
           const emailElement = accountElements.find(el => 
-            el.textContent?.includes(email)
+            el.textContent && el.textContent.includes(email)
           );
           
           if (emailElement) {
@@ -226,19 +234,32 @@ export async function authenticateWithGoogle(): Promise<string> {
               }
             }
             
-            (clickableParent as HTMLElement).click();
-            return true;
+            if (clickableParent instanceof HTMLElement) {
+              clickableParent.click();
+              return true;
+            }
+            return false;
           }
           return false;
         }, targetEmail);
         
         if (!accountFound) {
-          // If we can't find the account by email, try clicking "Use another account"
+          // Use evaluate instead of $x
           console.log('Account not found, clicking "Use another account"...');
-          const useAnotherAccountText = await page.$x("//div[contains(text(), 'Use another account')]");
-          if (useAnotherAccountText.length > 0) {
-            await useAnotherAccountText[0].click();
+          const anotherAccountClicked = await page.evaluate(() => {
+            const elements = Array.from(document.querySelectorAll('div, span, p'));
+            const anotherAccountElement = elements.find(el => 
+              el.textContent && el.textContent.includes('Use another account')
+            );
             
+            if (anotherAccountElement && anotherAccountElement instanceof HTMLElement) {
+              anotherAccountElement.click();
+              return true;
+            }
+            return false;
+          });
+          
+          if (anotherAccountClicked) {
             // Enter email
             console.log('Entering Google email...');
             await page.waitForSelector('input[type="email"]', { timeout: 10000 });
@@ -279,12 +300,15 @@ export async function authenticateWithGoogle(): Promise<string> {
     
     // Extract authentication token from localStorage
     console.log('Extracting authentication token...');
-    const token = await page.evaluate(() => {
+    const tokenData = await page.evaluate(() => {
+      // Create an object to store found tokens
+      const foundTokens: Record<string, string | null> = {};
+      
       // Check all localStorage items
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && (key.includes('token') || key.includes('auth'))) {
-          return localStorage.getItem(key);
+          foundTokens[key] = localStorage.getItem(key);
         }
       }
       
@@ -292,27 +316,39 @@ export async function authenticateWithGoogle(): Promise<string> {
       const cookies = document.cookie.split(';');
       for (const cookie of cookies) {
         if (cookie.includes('token') || cookie.includes('auth')) {
-          return cookie.split('=')[1];
+          const parts = cookie.split('=');
+          if (parts.length >= 2) {
+            foundTokens[parts[0].trim()] = parts[1];
+          }
         }
       }
       
-      // If still not found, dump all localStorage and cookies for debugging
-      const storage = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          storage[key] = localStorage.getItem(key);
+      // If still not found, dump all localStorage for debugging
+      if (Object.keys(foundTokens).length === 0) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key) {
+            foundTokens[`debug_${i}`] = localStorage.getItem(key);
+          }
         }
       }
       
-      console.log('All localStorage:', JSON.stringify(storage));
-      console.log('All cookies:', document.cookie);
-      
-      return null;
+      return foundTokens;
     });
+    
+    // Extract a token value from the found tokens
+    let token = null;
+    for (const key in tokenData) {
+      if (tokenData[key]) {
+        token = tokenData[key];
+        console.log(`Found token with key: ${key}`);
+        break;
+      }
+    }
     
     if (!token) {
       console.error('Could not retrieve authentication token');
+      console.log('All found storage data:', JSON.stringify(tokenData, null, 2));
       throw new Error('Could not retrieve authentication token');
     }
     
