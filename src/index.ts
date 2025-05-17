@@ -1,10 +1,10 @@
 // Import necessary dependencies
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import helmet from 'helmet'; // Only import once
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth.routes'; // Import the auth routes
+import authRoutes from './routes/auth.routes';
 
 // Load environment variables
 dotenv.config();
@@ -14,10 +14,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Set up middleware
-app.use(cors());           // Enable CORS
-app.use(helmet());         // Add security headers
-app.use(morgan('dev'));    // HTTP request logging
-app.use(express.json());   // Parse JSON request bodies
+app.use(cors());
+app.use(helmet()); // Use helmet for security headers
+app.use(morgan('dev'));
+app.use(express.json());
 
 // Basic routes
 app.get('/', (req, res) => {
@@ -38,9 +38,3 @@ app.listen(port, () => {
 
 // Export for testing
 export default app;
-
-// Add this to your imports
-import helmet from 'helmet';
-
-// Add this middleware
-app.use(helmet()); // Adds various HTTP security headers

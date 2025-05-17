@@ -1,34 +1,28 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.apiKeyAuth = void 0;
-const logger_1 = require("../utils/logger");
+exports.verifyApiKey = void 0;
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 /**
- * Middleware to verify API key for service authentication
+ * Middleware to verify API key
  */
-const apiKeyAuth = (req, res, next) => {
-    // Get API key from header, query, or body
-    const apiKey = req.headers['x-api-key'] ||
-        req.query.apiKey ||
-        req.body?.apiKey;
-    // Check if API key is provided
-    if (!apiKey) {
-        logger_1.logger.warn('API key missing in request');
+const verifyApiKey = (req, res, next) => {
+    // Get API key from environment variables
+    const validApiKey = process.env.API_KEY;
+    // Get API key from request headers
+    const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+    // Check if API key is valid
+    if (!apiKey || apiKey !== validApiKey) {
         return res.status(401).json({
             success: false,
-            error: 'API key is required'
+            message: 'Unauthorized: Invalid API key'
         });
     }
-    // Verify API key matches our configured key
-    const expectedApiKey = process.env.API_KEY;
-    if (apiKey !== expectedApiKey) {
-        logger_1.logger.warn('Invalid API key provided');
-        return res.status(401).json({
-            success: false,
-            error: 'Invalid API key'
-        });
-    }
-    // API key is valid, proceed
+    // API key is valid, proceed to the next middleware/route handler
     next();
 };
-exports.apiKeyAuth = apiKeyAuth;
+exports.verifyApiKey = verifyApiKey;
 //# sourceMappingURL=auth.middleware.js.map
