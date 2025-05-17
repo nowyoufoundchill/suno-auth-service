@@ -123,7 +123,7 @@ export async function authenticateWithGoogle(): Promise<string> {
       
       // Try to find the account with the correct email
       const targetEmail = process.env.GOOGLE_EMAIL;
-      const accountFound = await page.evaluate((email) => {
+      const accountFound = await page.evaluate((email: string) => {
         const accountDivs = Array.from(document.querySelectorAll('div[data-email]'));
         const targetDiv = accountDivs.find(div => div.getAttribute('data-email') === email);
         if (targetDiv) {
