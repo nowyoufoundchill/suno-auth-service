@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import { authenticateWithGoogle } from '../services/googleOAuth.service';
+import { verifyApiKey } from '../middleware/auth.middleware';
 
 const router = Router();
 
 /**
  * @route   POST /api/auth/login
  * @desc    Authenticate with Google through Suno
- * @access  Public
+ * @access  Private (requires API key)
  */
-router.post('/login', async (req, res) => {
+router.post('/login', verifyApiKey, async (req, res) => {
   try {
     const token = await authenticateWithGoogle();
     
@@ -28,9 +29,9 @@ router.post('/login', async (req, res) => {
 /**
  * @route   GET /api/auth/verify
  * @desc    Verify authentication token
- * @access  Public
+ * @access  Private (requires API key)
  */
-router.get('/verify', (req, res) => {
+router.get('/verify', verifyApiKey, (req, res) => {
   // For initial testing, return mock verification
   return res.status(200).json({
     success: true,

@@ -1,36 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 /**
- * Middleware to verify API key for service authentication
+ * Middleware to verify API key
  */
-export const apiKeyAuth = (req: Request, res: Response, next: NextFunction) => {
-  // Get API key from header, query, or body
-  const apiKey = 
-    req.headers['x-api-key'] || 
-    req.query.apiKey || 
-    req.body?.apiKey;
+export const verifyApiKey = (req: Request, res: Response, next: NextFunction) => {
+  // Get API key from environment variables
+  const validApiKey = process.env.API_KEY;
   
-  // Check if API key is provided
-  if (!apiKey) {
-    logger.warn('API key missing in request');
-    return res.status(401).json({ 
-      success: false, 
-      error: 'API key is required' 
+  // Get API key from request headers
+  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+  
+  // Check if API key is valid
+  if (!apiKey || apiKey !== validApiKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized: Invalid API key'
     });
   }
   
-  // Verify API key matches our configured key
-  const expectedApiKey = process.env.API_KEY;
-  
-  if (apiKey !== expectedApiKey) {
-    logger.warn('Invalid API key provided');
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Invalid API key' 
-    });
-  }
-  
-  // API key is valid, proceed
+  // API key is valid, proceed to the next middleware/route handler
   next();
 };

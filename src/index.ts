@@ -38,3 +38,9 @@ app.listen(port, () => {
 
 // Export for testing
 export default app;
+
+// Add this to your imports
+import helmet from 'helmet';
+
+// Add this middleware
+app.use(helmet()); // Adds various HTTP security headers
