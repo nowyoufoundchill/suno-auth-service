@@ -40,3 +40,21 @@ router.get('/verify', verifyApiKey, (req, res) => {
 });
 
 export default router;
+
+// Add this import
+import { getDebugInfo } from '../services/debug.service';
+
+// Add this route
+router.get('/debug', verifyApiKey, async (req, res) => {
+  try {
+    const debugInfo = await getDebugInfo();
+    return res.status(200).json(debugInfo);
+  } catch (error) {
+    console.error('Debug info error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get debug info',
+      error: error.message || 'Unknown error'
+    });
+  }
+});
