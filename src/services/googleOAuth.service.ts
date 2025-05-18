@@ -381,7 +381,7 @@ try {
   await page.type('input[type="email"]', process.env.GOOGLE_EMAIL || '');
   
   // Add a small delay
-  await page.waitForTimeout(1000);
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
   // Click the Next button instead of pressing Enter
   console.log('Looking for Next button...');
@@ -426,7 +426,7 @@ try {
   await page.type('input[type="password"]', process.env.GOOGLE_PASSWORD || '');
   
   // Add a small delay
-  await page.waitForTimeout(1000);
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
   // Click the Sign In button instead of pressing Enter
   console.log('Looking for Sign In button...');
